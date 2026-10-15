@@ -1,0 +1,2108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>AutoStock — Workshop Inventory & Job Cards</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    /* Workshop Design System Color Tokens & Safe Areas */
+    :root {
+      --canvas: #F8FAFC;
+      --card-bg: #FFFFFF;
+      --brand-navy: #0F2C59;
+      --active-pill: #EFF6FF;
+      --border-color: #E2E8F0;
+      --text-primary: #0F172A;
+      --text-secondary: #64748B;
+    }
+    body {
+      background-color: var(--canvas);
+      color: var(--text-primary);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+      padding-bottom: env(safe-area-inset-bottom, 20px);
+    }
+    .touch-target {
+      min-width: 44px;
+      min-height: 44px;
+    }
+    .card-shadow {
+      box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.05);
+    }
+    @keyframes pulse-ring {
+      0% { transform: scale(0.95); opacity: 0.8; }
+      50% { transform: scale(1.15); opacity: 0.4; }
+      100% { transform: scale(0.95); opacity: 0.8; }
+    }
+    .mic-pulse {
+      animation: pulse-ring 1.5s infinite ease-in-out;
+    }
+    @keyframes scan-line {
+      0% { top: 10%; }
+      50% { top: 90%; }
+      100% { top: 10%; }
+    }
+    .laser-line {
+      animation: scan-line 2s infinite ease-in-out;
+    }
+    /* Hide scrollbars for clean mobile appearance */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+  </style>
+</head>
+<body class="bg-[#F8FAFC] text-[#0F172A] min-h-screen flex flex-col antialiased selection:bg-[#0F2C59] selection:text-white">
+
+  <!-- Top Sticky Bar -->
+  <header class="sticky top-0 z-40 bg-white border-b border-[#E2E8F0] px-4 py-3 flex items-center justify-between shadow-sm">
+    <div>
+      <div class="flex items-center gap-1.5">
+        <h1 class="text-lg font-black tracking-tight text-[#0F2C59]">AutoStock</h1>
+        <span class="bg-[#EFF6FF] text-[#0F2C59] text-[10px] font-bold px-1.5 py-0.5 rounded border border-[#BFDBFE]">PRO</span>
+      </div>
+      <p class="text-xs text-[#64748B] font-medium">Bay 3 • Dave Miller</p>
+    </div>
+
+    <div class="flex items-center gap-2">
+      <!-- Network Mode Toggle Pill -->
+      <button onclick="window.app.toggleOnline()" class="touch-target flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border transition-colors" id="network-pill">
+        <span class="w-2 h-2 rounded-full bg-[#15803D]" id="network-dot"></span>
+        <span id="network-label" class="text-[#15803D]">Cloud Sync</span>
+      </button>
+
+      <!-- Quick Mic Shortcut -->
+      <button onclick="window.app.switchTab('workshop'); window.app.setWorkshopSubTab('voice');" class="touch-target w-10 h-10 rounded-full bg-[#0F2C59] text-white flex items-center justify-center shadow hover:opacity-90 active:scale-95 transition-transform" title="Hands-free Voice Station">
+        <i data-lucide="mic" class="w-5 h-5"></i>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main View Container -->
+  <main class="flex-1 max-w-2xl w-full mx-auto p-4 pb-28">
+
+    <!-- VIEW 1: WORKSHOP (Job Cards, Voice Station, Core Returns) -->
+    <section id="view-workshop" class="space-y-4">
+      <!-- Sub-Navigation Pill Switcher -->
+      <div class="bg-[#E2E8F0] p-1 rounded-xl flex items-center justify-between text-xs font-bold">
+        <button onclick="window.app.setWorkshopSubTab('jobs')" id="subtab-jobs" class="flex-1 py-2 rounded-lg text-white bg-[#0F2C59] flex items-center justify-center gap-1 transition-all">
+          <i data-lucide="car" class="w-3.5 h-3.5"></i>
+          <span>Job Cards (<span id="active-jobs-badge">3</span>)</span>
+        </button>
+        <button onclick="window.app.setWorkshopSubTab('voice')" id="subtab-voice" class="flex-1 py-2 rounded-lg text-[#64748B] hover:text-[#0F2C59] flex items-center justify-center gap-1 transition-all">
+          <i data-lucide="mic" class="w-3.5 h-3.5"></i>
+          <span>Voice Drafts</span>
+        </button>
+        <button onclick="window.app.setWorkshopSubTab('cores')" id="subtab-cores" class="flex-1 py-2 rounded-lg text-[#64748B] hover:text-[#0F2C59] flex items-center justify-center gap-1 transition-all">
+          <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+          <span>Core Returns</span>
+        </button>
+      </div>
+
+      <!-- Sub-view: Active Job Cards -->
+      <div id="workshop-sub-jobs" class="space-y-4">
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 class="text-base font-bold text-[#0F172A]">Active Work Orders</h2>
+            <p class="text-xs text-[#64748B]">Real-time parts costing & margin preview</p>
+          </div>
+          <button onclick="window.app.openModal('modal-new-job')" class="touch-target bg-[#0F2C59] text-white text-xs font-bold px-3 py-2 rounded-xl flex items-center gap-1 shadow hover:bg-opacity-90 active:scale-95 transition-all">
+            <i data-lucide="plus" class="w-4 h-4"></i>
+            <span>New Order</span>
+          </button>
+        </div>
+        <div id="job-cards-list" class="space-y-3">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
+      <!-- Sub-view: Hands-Free Voice Station -->
+      <div id="workshop-sub-voice" class="hidden space-y-4">
+        <div class="bg-white border border-[#E2E8F0] rounded-2xl p-4 card-shadow space-y-4">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <div class="w-8 h-8 rounded-lg bg-[#EFF6FF] text-[#0F2C59] flex items-center justify-center">
+                <i data-lucide="mic" class="w-5 h-5"></i>
+              </div>
+              <div>
+                <h3 class="text-base font-bold text-[#0F2C59]">Hands-Free Voice Station</h3>
+                <p class="text-xs text-[#64748B]">Designed for greasy mechanics with NLP parsing</p>
+              </div>
+            </div>
+            <span id="voice-listening-badge" class="hidden bg-[#FEE2E2] text-[#DC2626] text-[10px] font-bold px-2 py-0.5 rounded border border-[#FCA5A5] animate-pulse">
+              LISTENING
+            </span>
+          </div>
+
+          <!-- Live Transcription Box -->
+          <div class="bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl p-3 min-h-[70px]">
+            <p class="text-[10px] font-bold tracking-wider text-[#64748B] uppercase">Live Transcription</p>
+            <p id="voice-transcript-text" class="text-sm font-medium text-[#0F172A] mt-1 italic">
+              "Tap the large microphone button or select a quick workshop voice preset below..."
+            </p>
+          </div>
+
+          <!-- Large Mic Button -->
+          <div class="flex flex-col items-center justify-center py-2">
+            <div id="mic-pulse-container" class="relative flex items-center justify-center">
+              <button id="voice-mic-btn" onclick="window.app.toggleVoiceRecording()" class="touch-target w-16 h-16 rounded-full bg-[#0F2C59] text-white flex items-center justify-center shadow-lg active:scale-95 transition-all">
+                <i data-lucide="mic" class="w-8 h-8"></i>
+              </button>
+            </div>
+            <p id="voice-mic-status" class="text-xs text-[#64748B] mt-2 font-medium">Tap Mic to speak or click quick presets:</p>
+          </div>
+
+          <!-- Greasy Hands Voice Presets -->
+          <div class="space-y-2 pt-2 border-t border-[#E2E8F0]">
+            <p class="text-[10px] font-bold text-[#64748B] uppercase">Quick Presets (1-Tap Simulation)</p>
+            <button onclick="window.app.applyVoicePreset('Took 2 liters 5W-30 oil for plate B 1234 XYZ')" class="w-full text-left bg-[#EFF6FF] border border-[#BFDBFE] hover:bg-blue-100 p-2.5 rounded-lg text-xs font-semibold text-[#0F2C59] flex items-center gap-2 transition-colors">
+              <i data-lucide="message-square" class="w-3.5 h-3.5 text-[#0F2C59]"></i>
+              <span>"Took 2 liters 5W-30 oil for plate B 1234 XYZ"</span>
+            </button>
+            <button onclick="window.app.applyVoicePreset('Used 4 spark plugs for B 8821 KLS')" class="w-full text-left bg-[#EFF6FF] border border-[#BFDBFE] hover:bg-blue-100 p-2.5 rounded-lg text-xs font-semibold text-[#0F2C59] flex items-center gap-2 transition-colors">
+              <i data-lucide="message-square" class="w-3.5 h-3.5 text-[#0F2C59]"></i>
+              <span>"Used 4 spark plugs for B 8821 KLS"</span>
+            </button>
+            <button onclick="window.app.applyVoicePreset('Installed 1 brake pad set on D 9902 TYU')" class="w-full text-left bg-[#EFF6FF] border border-[#BFDBFE] hover:bg-blue-100 p-2.5 rounded-lg text-xs font-semibold text-[#0F2C59] flex items-center gap-2 transition-colors">
+              <i data-lucide="message-square" class="w-3.5 h-3.5 text-[#0F2C59]"></i>
+              <span>"Installed 1 brake pad set on D 9902 TYU"</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Unconfirmed Drafts Review Queue -->
+        <div class="space-y-3">
+          <div class="flex items-center justify-between">
+            <h3 class="text-sm font-bold text-[#0F172A]">Unconfirmed Voice Drafts (<span id="voice-drafts-count">0</span>)</h3>
+            <span class="text-xs text-[#64748B]">End-of-Day Approval</span>
+          </div>
+          <div id="voice-drafts-list" class="space-y-2.5">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Sub-view: Core Parts & Trade-in Tracker -->
+      <div id="workshop-sub-cores" class="hidden space-y-4">
+        <!-- Deposit Credit Banner -->
+        <div class="bg-white border border-[#E2E8F0] rounded-2xl p-4 card-shadow flex items-center justify-between">
+          <div>
+            <div class="flex items-center gap-1.5 text-[#15803D]">
+              <i data-lucide="badge-dollar-sign" class="w-5 h-5"></i>
+              <span class="text-sm font-bold text-[#0F2C59]">Unclaimed Core Deposits</span>
+            </div>
+            <p class="text-xs text-[#64748B] mt-0.5">Supplier refund credits awaiting return</p>
+          </div>
+          <div class="bg-[#DCFCE7] border border-[#86EFAC] px-3 py-1.5 rounded-xl text-right">
+            <span id="core-deposit-total" class="text-lg font-black text-[#15803D]">$110.00</span>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between">
+          <h3 class="text-sm font-bold text-[#0F172A]">Core Deposit Pipeline</h3>
+          <button onclick="window.app.openModal('modal-new-core')" class="touch-target bg-[#0F2C59] text-white text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 shadow">
+            <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+            <span>Log Core</span>
+          </button>
+        </div>
+
+        <div id="core-returns-list" class="space-y-3">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+    </section>
+
+    <!-- VIEW 2: STOCK (Inventory, Bin Locations, Pack Conversions) -->
+    <section id="view-stock" class="hidden space-y-4">
+      <!-- Predictive Reorder Engine Banner -->
+      <div class="bg-white border border-[#E2E8F0] rounded-2xl p-4 card-shadow flex items-start gap-3">
+        <div class="w-8 h-8 rounded-lg bg-[#FEF3C7] text-[#B45309] flex items-center justify-center shrink-0 mt-0.5">
+          <i data-lucide="sparkles" class="w-5 h-5"></i>
+        </div>
+        <div class="flex-1">
+          <div class="flex items-center justify-between">
+            <h3 class="text-xs font-bold text-[#0F2C59] uppercase tracking-wide">Predictive Reorder Forecast</h3>
+            <span class="bg-[#EFF6FF] text-[#0F2C59] text-[10px] font-bold px-1.5 py-0.5 rounded border border-[#BFDBFE]">AI Velocity</span>
+          </div>
+          <p class="text-xs text-[#0F172A] mt-1 leading-relaxed">
+            3 active Job Cards require 5W-30 Oil & Spark Plugs. At current velocity, Castrol 5W-30 will reach 0 in ~18 hours.
+          </p>
+          <button onclick="window.app.quickReorderOil()" class="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-[#0F2C59] bg-[#F8FAFC] border border-[#E2E8F0] px-2.5 py-1.5 rounded-lg hover:bg-slate-100 transition-colors">
+            <span>⚡ Quick Reorder: Auto-receive 2x Box (24 Units) to Stock</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Search & Filters -->
+      <div class="space-y-2">
+        <div class="relative">
+          <i data-lucide="search" class="w-4 h-4 text-[#64748B] absolute left-3.5 top-3"></i>
+          <input type="text" id="stock-search-input" oninput="window.app.handleSearch(this.value)" placeholder="Search by SKU, Part Name, or OEM Ref..." class="w-full pl-10 pr-4 py-2.5 bg-white border border-[#E2E8F0] rounded-xl text-xs font-medium focus:outline-none focus:border-[#0F2C59]">
+        </div>
+
+        <!-- Category Horizontal Scroll -->
+        <div class="flex gap-1.5 overflow-x-auto no-scrollbar py-1" id="category-pills">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
+      <!-- Parts Inventory List -->
+      <div id="stock-inventory-list" class="space-y-3">
+        <!-- Populated by JS -->
+      </div>
+    </section>
+
+    <!-- VIEW 3: SCAN (Camera / Barcode / AI Vision Copilot) -->
+    <section id="view-scan" class="hidden space-y-4">
+      <!-- Viewfinder Canvas -->
+      <div class="relative w-full h-64 bg-[#0F172A] rounded-2xl overflow-hidden border-2 border-[#E2E8F0] flex flex-col justify-between p-3">
+        <video id="camera-preview-video" class="hidden absolute inset-0 w-full h-full object-cover" autoplay playsinline muted></video>
+
+        <!-- Top Bar inside viewfinder -->
+        <div class="relative z-10 flex items-center justify-between">
+          <span class="bg-black/60 text-[#38BDF8] text-[11px] font-bold px-2 py-1 rounded backdrop-blur">
+            AI Part Copilot 2.4 Active
+          </span>
+          <button onclick="window.app.toggleFlash()" id="flash-toggle-btn" class="touch-target w-9 h-9 rounded-full bg-black/60 text-white flex items-center justify-center backdrop-blur">
+            <i data-lucide="zap" class="w-4 h-4"></i>
+          </button>
+        </div>
+
+        <!-- Viewfinder Reticle Corners & Sweep Laser -->
+        <div class="relative z-10 flex-1 my-2 border border-white/30 rounded-xl relative overflow-hidden flex items-center justify-center">
+          <div class="laser-line absolute left-0 right-0 h-0.5 bg-[#38BDF8] shadow-[0_0_8px_#38BDF8]"></div>
+          <div class="text-center p-4 bg-black/30 backdrop-blur-sm rounded-lg">
+            <i data-lucide="scan" class="w-8 h-8 text-white/80 mx-auto mb-1"></i>
+            <p class="text-[10px] font-bold text-white/90 uppercase tracking-wider">Point at worn part or align barcode</p>
+          </div>
+        </div>
+
+        <div class="relative z-10 flex justify-center">
+          <button onclick="window.app.triggerCameraCapture()" class="touch-target bg-white text-[#0F2C59] text-xs font-bold px-4 py-1.5 rounded-full shadow flex items-center gap-1.5 active:scale-95 transition-transform">
+            <i data-lucide="camera" class="w-4 h-4"></i>
+            <span>Capture & Inspect</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Preset Simulator Selector for Greasy Hands -->
+      <div class="space-y-1.5">
+        <p class="text-[10px] font-bold text-[#64748B] uppercase tracking-wider">Inspect Worn Part Simulation:</p>
+        <div class="grid grid-cols-3 gap-2" id="scan-preset-buttons">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
+      <!-- AI Inspection Result Card -->
+      <div class="bg-white border border-[#E2E8F0] rounded-2xl p-4 card-shadow space-y-3" id="scan-result-card">
+        <!-- Populated by JS -->
+      </div>
+    </section>
+
+    <!-- VIEW 4: AUDIT (Stock Movement Trail) -->
+    <section id="view-audit" class="hidden space-y-4">
+      <div>
+        <div class="flex items-center gap-2">
+          <i data-lucide="history" class="w-5 h-5 text-[#0F2C59]"></i>
+          <h2 class="text-base font-bold text-[#0F172A]">Stock Movement Audit Trail</h2>
+        </div>
+        <p class="text-xs text-[#64748B]">Immutable transaction ledger of allocations & adjustments</p>
+      </div>
+
+      <!-- Audit Filter Pills -->
+      <div class="flex gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+        <button onclick="window.app.setAuditFilter('ALL')" class="audit-filter-btn px-3 py-1.5 rounded-lg text-xs font-bold bg-[#0F2C59] text-white">All Logs</button>
+        <button onclick="window.app.setAuditFilter('JOB_ASSIGNED')" class="audit-filter-btn px-3 py-1.5 rounded-lg text-xs font-medium bg-white border border-[#E2E8F0] text-[#0F172A]">Jobs</button>
+        <button onclick="window.app.setAuditFilter('PACK_CONVERTED')" class="audit-filter-btn px-3 py-1.5 rounded-lg text-xs font-medium bg-white border border-[#E2E8F0] text-[#0F172A]">Packs</button>
+        <button onclick="window.app.setAuditFilter('STOCK_DEDUCTED')" class="audit-filter-btn px-3 py-1.5 rounded-lg text-xs font-medium bg-white border border-[#E2E8F0] text-[#0F172A]">Manual</button>
+      </div>
+
+      <div id="audit-logs-list" class="space-y-2.5">
+        <!-- Populated by JS -->
+      </div>
+    </section>
+
+    <!-- VIEW 5: SYNC (Offline-First Engine) -->
+    <section id="view-sync" class="hidden space-y-4">
+      <div class="bg-white border border-[#E2E8F0] rounded-2xl p-4 card-shadow space-y-4">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2.5">
+            <div id="sync-status-icon" class="w-10 h-10 rounded-xl bg-[#DCFCE7] text-[#15803D] flex items-center justify-center">
+              <i data-lucide="cloud-check" class="w-6 h-6"></i>
+            </div>
+            <div>
+              <h3 id="sync-status-title" class="text-base font-bold text-[#0F2C59]">Cloud Database Online</h3>
+              <p id="sync-status-desc" class="text-xs text-[#64748B]">Changes sync automatically to workshop cloud</p>
+            </div>
+          </div>
+          <button onclick="window.app.toggleOnline()" class="touch-target px-3 py-1.5 rounded-xl border text-xs font-bold" id="sync-toggle-btn">
+            Toggle
+          </button>
+        </div>
+
+        <div class="border-t border-[#E2E8F0] pt-3 flex items-center justify-between">
+          <div>
+            <p class="text-[10px] font-bold text-[#64748B] uppercase">Outbox Pending Queue</p>
+            <p class="text-sm font-bold text-[#0F172A]"><span id="sync-pending-count">0</span> operations queued</p>
+          </div>
+          <button onclick="window.app.triggerSync()" id="btn-sync-now" class="touch-target bg-[#0F2C59] text-white text-xs font-bold px-4 py-2 rounded-xl flex items-center gap-1.5 shadow active:scale-95 transition-transform">
+            <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+            <span id="btn-sync-label">Sync Now</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Garage Offline Explainer Banner -->
+      <div class="bg-[#EFF6FF] border border-[#BFDBFE] p-3.5 rounded-xl flex items-start gap-2.5">
+        <i data-lucide="shield-check" class="w-5 h-5 text-[#0F2C59] shrink-0 mt-0.5"></i>
+        <div>
+          <h4 class="text-xs font-bold text-[#0F2C59]">Offline-First Automotive Architecture</h4>
+          <p class="text-[11px] text-[#64748B] mt-0.5 leading-relaxed">
+            Full functionality inside subterranean workshop bays without signal. Inventory deductions and voice drafts are cached locally and pushed when connection returns.
+          </p>
+        </div>
+      </div>
+
+      <!-- Queue Activity Log -->
+      <div class="space-y-2">
+        <h4 class="text-xs font-bold text-[#64748B] uppercase tracking-wider">Sync Transaction Outbox</h4>
+        <div id="sync-queue-list" class="space-y-2">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- MODALS -->
+
+  <!-- Modal: Deduct & Assign Part to Job Card -->
+  <div id="modal-deduct-part" class="hidden fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-3">
+    <div class="bg-white rounded-2xl w-full max-w-md p-5 card-shadow space-y-4 max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between border-b border-[#E2E8F0] pb-3">
+        <div>
+          <h3 class="text-base font-bold text-[#0F2C59]">Deduct & Assign Part</h3>
+          <p class="text-xs text-[#64748B]">Assigning to <span id="modal-deduct-job-id" class="font-bold text-[#0F172A]">#WO-1042</span></p>
+        </div>
+        <button onclick="window.app.closeModal('modal-deduct-part')" class="touch-target text-[#64748B] hover:text-[#0F172A]">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="space-y-2">
+        <label class="text-xs font-bold text-[#64748B] uppercase">Select In-Stock Warehouse Part:</label>
+        <div id="modal-deduct-parts-list" class="space-y-2 max-h-48 overflow-y-auto pr-1">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
+      <div class="flex items-center justify-between bg-[#F8FAFC] p-3 rounded-xl border border-[#E2E8F0]">
+        <span class="text-xs font-bold text-[#0F172A]">Quantity to Deduct:</span>
+        <div class="flex items-center gap-3">
+          <button onclick="window.app.stepDeductQty(-1)" class="touch-target w-10 h-10 rounded-lg bg-white border border-[#E2E8F0] text-[#0F172A] font-bold flex items-center justify-center active:scale-95 text-lg">-</button>
+          <span id="modal-deduct-qty-val" class="text-base font-bold text-[#0F2C59] w-6 text-center">1</span>
+          <button onclick="window.app.stepDeductQty(1)" class="touch-target w-10 h-10 rounded-lg bg-[#0F2C59] text-white font-bold flex items-center justify-center active:scale-95 text-lg">+</button>
+        </div>
+      </div>
+
+      <div class="flex gap-2 pt-2">
+        <button onclick="window.app.closeModal('modal-deduct-part')" class="flex-1 py-3 rounded-xl border border-[#E2E8F0] text-xs font-bold text-[#64748B] touch-target">Cancel</button>
+        <button onclick="window.app.confirmDeductPart()" class="flex-1 py-3 rounded-xl bg-[#0F2C59] text-white text-xs font-bold touch-target shadow">Deduct & Assign</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Bulk Pack Conversion -->
+  <div id="modal-pack-conversion" class="hidden fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-3">
+    <div class="bg-white rounded-2xl w-full max-w-md p-5 card-shadow space-y-4">
+      <div class="flex items-center justify-between border-b border-[#E2E8F0] pb-3">
+        <div>
+          <h3 class="text-base font-bold text-[#0F2C59]">Bulk Pack Conversion</h3>
+          <p class="text-xs text-[#64748B]" id="modal-pack-part-name">NGK Spark Plugs</p>
+        </div>
+        <button onclick="window.app.closeModal('modal-pack-conversion')" class="touch-target text-[#64748B]">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="bg-[#F8FAFC] p-3 rounded-xl border border-[#E2E8F0] text-xs space-y-1">
+        <p class="font-bold text-[#0F2C59]" id="modal-pack-spec">Pack Specification: 1 Box = 12 Units</p>
+        <p class="text-[#64748B]">Auto-unpacks master cases into single inventory units.</p>
+      </div>
+
+      <div class="flex items-center justify-between">
+        <span class="text-xs font-bold text-[#0F172A]">Packs Received:</span>
+        <div class="flex items-center gap-3">
+          <button onclick="window.app.stepPackQty(-1)" class="touch-target w-10 h-10 rounded-lg bg-white border border-[#E2E8F0] text-lg font-bold flex items-center justify-center">-</button>
+          <span id="modal-pack-count" class="text-base font-bold text-[#0F2C59] w-6 text-center">1</span>
+          <button onclick="window.app.stepPackQty(1)" class="touch-target w-10 h-10 rounded-lg bg-[#0F2C59] text-white text-lg font-bold flex items-center justify-center">+</button>
+        </div>
+      </div>
+
+      <p class="text-center text-xs font-bold text-[#15803D]" id="modal-pack-summary">
+        = Adding +12 units to stock
+      </p>
+
+      <div class="flex gap-2">
+        <button onclick="window.app.closeModal('modal-pack-conversion')" class="flex-1 py-3 rounded-xl border border-[#E2E8F0] text-xs font-bold text-[#64748B]">Cancel</button>
+        <button onclick="window.app.confirmPackConversion()" class="flex-1 py-3 rounded-xl bg-[#0F2C59] text-white text-xs font-bold shadow">Unpack to Stock</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: New Work Order -->
+  <div id="modal-new-job" class="hidden fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-3">
+    <div class="bg-white rounded-2xl w-full max-w-md p-5 card-shadow space-y-3">
+      <div class="flex items-center justify-between border-b border-[#E2E8F0] pb-2">
+        <h3 class="text-base font-bold text-[#0F2C59]">Open New Work Order</h3>
+        <button onclick="window.app.closeModal('modal-new-job')" class="touch-target text-[#64748B]">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="space-y-2 text-xs">
+        <div>
+          <label class="font-bold text-[#64748B]">Vehicle Plate *</label>
+          <input type="text" id="new-job-plate" placeholder="e.g. B 1234 XYZ" class="w-full mt-1 p-2.5 uppercase border border-[#E2E8F0] rounded-xl font-bold text-[#0F172A] focus:outline-none focus:border-[#0F2C59]">
+        </div>
+        <div>
+          <label class="font-bold text-[#64748B]">Customer Name *</label>
+          <input type="text" id="new-job-customer" placeholder="e.g. Marcus Vance" class="w-full mt-1 p-2.5 border border-[#E2E8F0] rounded-xl font-medium focus:outline-none focus:border-[#0F2C59]">
+        </div>
+        <div>
+          <label class="font-bold text-[#64748B]">Vehicle Model</label>
+          <input type="text" id="new-job-model" placeholder="e.g. Audi A4 2.0T Quattro" class="w-full mt-1 p-2.5 border border-[#E2E8F0] rounded-xl font-medium focus:outline-none focus:border-[#0F2C59]">
+        </div>
+        <div>
+          <label class="font-bold text-[#64748B]">Assigned Mechanic</label>
+          <input type="text" id="new-job-mechanic" value="Dave Miller" class="w-full mt-1 p-2.5 border border-[#E2E8F0] rounded-xl font-medium focus:outline-none focus:border-[#0F2C59]">
+        </div>
+      </div>
+
+      <div class="flex gap-2 pt-2">
+        <button onclick="window.app.closeModal('modal-new-job')" class="flex-1 py-3 rounded-xl border border-[#E2E8F0] text-xs font-bold text-[#64748B]">Cancel</button>
+        <button onclick="window.app.confirmCreateJob()" class="flex-1 py-3 rounded-xl bg-[#0F2C59] text-white text-xs font-bold shadow">Create Order</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: New Core Return -->
+  <div id="modal-new-core" class="hidden fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-3">
+    <div class="bg-white rounded-2xl w-full max-w-md p-5 card-shadow space-y-3">
+      <div class="flex items-center justify-between border-b border-[#E2E8F0] pb-2">
+        <h3 class="text-base font-bold text-[#0F2C59]">Log Core Deposit Return</h3>
+        <button onclick="window.app.closeModal('modal-new-core')" class="touch-target text-[#64748B]">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="space-y-2 text-xs">
+        <div>
+          <label class="font-bold text-[#64748B]">Core Part Name</label>
+          <input type="text" id="new-core-part" value="Denso AC Compressor (Sanden Pattern)" class="w-full mt-1 p-2.5 border border-[#E2E8F0] rounded-xl font-medium">
+        </div>
+        <div>
+          <label class="font-bold text-[#64748B]">Vehicle License Plate *</label>
+          <input type="text" id="new-core-plate" placeholder="e.g. B 1234 XYZ" class="w-full mt-1 p-2.5 uppercase border border-[#E2E8F0] rounded-xl font-bold">
+        </div>
+        <div>
+          <label class="font-bold text-[#64748B]">Distributor / Supplier</label>
+          <input type="text" id="new-core-supplier" value="EuroParts Dist. Warehouse" class="w-full mt-1 p-2.5 border border-[#E2E8F0] rounded-xl font-medium">
+        </div>
+        <div>
+          <label class="font-bold text-[#64748B]">Deposit Value ($)</label>
+          <input type="number" id="new-core-deposit" value="80.00" class="w-full mt-1 p-2.5 border border-[#E2E8F0] rounded-xl font-bold">
+        </div>
+      </div>
+
+      <div class="flex gap-2 pt-2">
+        <button onclick="window.app.closeModal('modal-new-core')" class="flex-1 py-3 rounded-xl border border-[#E2E8F0] text-xs font-bold text-[#64748B]">Cancel</button>
+        <button onclick="window.app.confirmCreateCore()" class="flex-1 py-3 rounded-xl bg-[#0F2C59] text-white text-xs font-bold shadow">Save Core</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- FLOATING DOCK BOTTOM NAVIGATION BAR (5 Tabs) -->
+  <nav class="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-[#E2E8F0] px-2 py-2 shadow-lg">
+    <div class="max-w-md mx-auto flex items-center justify-between">
+      <!-- 1. Workshop -->
+      <button onclick="window.app.switchTab('workshop')" id="nav-btn-workshop" class="touch-target flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-[#0F2C59] text-white font-bold text-xs transition-all">
+        <i data-lucide="wrench" class="w-4 h-4"></i>
+        <span class="nav-label">Workshop</span>
+      </button>
+
+      <!-- 2. Stock -->
+      <button onclick="window.app.switchTab('stock')" id="nav-btn-stock" class="touch-target relative flex items-center gap-1.5 px-2.5 py-2 rounded-full text-[#64748B] hover:text-[#0F2C59] font-medium text-xs transition-all">
+        <div class="relative">
+          <i data-lucide="package" class="w-4 h-4"></i>
+          <span id="nav-stock-badge" class="absolute -top-1 -right-1.5 w-3.5 h-3.5 bg-[#DC2626] text-white text-[9px] font-bold rounded-full flex items-center justify-center">3</span>
+        </div>
+        <span class="nav-label hidden">Stock</span>
+      </button>
+
+      <!-- 3. Scan -->
+      <button onclick="window.app.switchTab('scan')" id="nav-btn-scan" class="touch-target flex items-center gap-1.5 px-2.5 py-2 rounded-full text-[#64748B] hover:text-[#0F2C59] font-medium text-xs transition-all">
+        <i data-lucide="scan-line" class="w-4 h-4"></i>
+        <span class="nav-label hidden">Scan</span>
+      </button>
+
+      <!-- 4. Audit -->
+      <button onclick="window.app.switchTab('audit')" id="nav-btn-audit" class="touch-target flex items-center gap-1.5 px-2.5 py-2 rounded-full text-[#64748B] hover:text-[#0F2C59] font-medium text-xs transition-all">
+        <i data-lucide="history" class="w-4 h-4"></i>
+        <span class="nav-label hidden">Audit</span>
+      </button>
+
+      <!-- 5. Sync -->
+      <button onclick="window.app.switchTab('sync')" id="nav-btn-sync" class="touch-target relative flex items-center gap-1.5 px-2.5 py-2 rounded-full text-[#64748B] hover:text-[#0F2C59] font-medium text-xs transition-all">
+        <div class="relative">
+          <i data-lucide="cloud" class="w-4 h-4"></i>
+          <span id="nav-sync-badge" class="hidden absolute -top-1 -right-1.5 w-3.5 h-3.5 bg-[#B45309] text-white text-[9px] font-bold rounded-full flex items-center justify-center">1</span>
+        </div>
+        <span class="nav-label hidden">Sync</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- APPLICATION CORE LOGIC ENGINE (Zero Bloat, Robust State Management) -->
+  <script>
+    (function () {
+      'use strict';
+
+      // SEED MOCK DATA (10 Parts, 3 Job Cards, 2 Cores)
+      const INITIAL_PARTS = [
+        { id: "p1", name: "Castrol Edge 5W-30 Full Synthetic Oil (1L)", sku: "OIL-5W30-SYN", oem: "VW 504 00 / MB 229.51", category: "Fluids", qty: 4, minQty: 12, bin: "Aisle 1 - Shelf A - Bin 04", price: 18.50, cost: 11.00, core: false, packUnit: "Box of 12", packRatio: 12 },
+        { id: "p2", name: "Bosch Premium Oil Filter", sku: "FLT-BOS-940", oem: "Mann W712/94 / Mahle OC264", category: "Filters", qty: 18, minQty: 8, bin: "Aisle 1 - Shelf B - Bin 11", price: 14.00, cost: 6.50, core: false, packUnit: "Master Pack", packRatio: 10 },
+        { id: "p3", name: "NGK Iridium Spark Plug (Pack of 4)", sku: "SPK-NGK-ILZ", oem: "Denso IK20TT / Bosch FR7KPP", category: "Ignition", qty: 6, minQty: 16, bin: "Aisle 2 - Shelf A - Bin 02", price: 12.00, cost: 5.20, core: false, packUnit: "Box of 12", packRatio: 12 },
+        { id: "p4", name: "Brembo Front Brake Pad Set", sku: "BRK-BRM-844", oem: "Akebono ACT1760 / Textar 25683", category: "Brakes", qty: 5, minQty: 4, bin: "Aisle 2 - Shelf C - Bin 19", price: 85.00, cost: 48.00, core: false, packUnit: "Pair Pack", packRatio: 2 },
+        { id: "p5", name: "Valeo 120A Reman Alternator", sku: "ALT-VAL-120", oem: "Bosch AL0844X / Denso DAN1014", category: "Electrical", qty: 2, minQty: 1, bin: "Aisle 4 - Shelf A - Bin 01", price: 240.00, cost: 160.00, core: true, deposit: 60.00, packUnit: "Crate", packRatio: 1 },
+        { id: "p6", name: "Denso AC Compressor (Sanden)", sku: "CMP-DEN-471", oem: "Sanden PXE16 / Valeo 813136", category: "Cooling / HVAC", qty: 1, minQty: 2, bin: "Aisle 4 - Shelf B - Bin 05", price: 380.00, cost: 250.00, core: true, deposit: 80.00, packUnit: "Unit", packRatio: 1 },
+        { id: "p7", name: "Ferodo Dot 4 Brake Fluid (500ml)", sku: "FLD-DOT4-500", oem: "Castrol React / Motul DOT4", category: "Fluids", qty: 22, minQty: 10, bin: "Aisle 1 - Shelf C - Bin 08", price: 9.50, cost: 4.20, core: false, packUnit: "Case of 24", packRatio: 24 },
+        { id: "p8", name: "Bosch Starter Motor 1.4kW", sku: "STR-BOS-772", oem: "Valeo 438183 / Remy 17542", category: "Electrical", qty: 0, minQty: 2, bin: "Aisle 4 - Shelf A - Bin 03", price: 210.00, cost: 140.00, core: true, deposit: 50.00, packUnit: "Unit", packRatio: 1 },
+        { id: "p9", name: "Mann Engine Air Filter", sku: "FLT-MAN-C35", oem: "Fram CA10226 / Bosch 5369WS", category: "Filters", qty: 14, minQty: 6, bin: "Aisle 2 - Shelf B - Bin 15", price: 22.00, cost: 10.50, core: false, packUnit: "Box of 6", packRatio: 6 },
+        { id: "p10", name: "Gates Timing Belt Kit w/ Water Pump", sku: "BLT-GAT-556", oem: "Continental CT1139 / INA 530", category: "Engine Timing", qty: 3, minQty: 2, bin: "Aisle 3 - Shelf B - Bin 07", price: 165.00, cost: 98.00, core: false, packUnit: "Kit", packRatio: 1 }
+      ];
+
+      const INITIAL_JOBS = [
+        {
+          id: "WO-1042",
+          plate: "B 1234 XYZ",
+          customer: "Marcus Vance",
+          model: "Audi A4 2.0T Quattro",
+          mechanic: "Dave Miller",
+          status: "Active",
+          laborHours: 2.0,
+          partsUsed: [
+            { id: "p1", name: "Castrol Edge 5W-30 Oil", sku: "OIL-5W30-SYN", qty: 5, price: 18.50, cost: 11.00 },
+            { id: "p2", name: "Bosch Premium Oil Filter", sku: "FLT-BOS-940", qty: 1, price: 14.00, cost: 6.50 }
+          ]
+        },
+        {
+          id: "WO-1043",
+          plate: "B 8821 KLS",
+          customer: "Sarah Jenkins",
+          model: "VW Golf GTI Mk7",
+          mechanic: "Alex Rivera",
+          status: "Active",
+          laborHours: 1.5,
+          partsUsed: [
+            { id: "p3", name: "NGK Iridium Spark Plugs", sku: "SPK-NGK-ILZ", qty: 4, price: 12.00, cost: 5.20 },
+            { id: "p9", name: "Mann Engine Air Filter", sku: "FLT-MAN-C35", qty: 1, price: 22.00, cost: 10.50 }
+          ]
+        },
+        {
+          id: "WO-1044",
+          plate: "D 9902 TYU",
+          customer: "Kevin Zhang",
+          model: "BMW 328i F30",
+          mechanic: "Dave Miller",
+          status: "Active",
+          laborHours: 2.5,
+          partsUsed: [
+            { id: "p4", name: "Brembo Front Brake Pad Set", sku: "BRK-BRM-844", qty: 1, price: 85.00, cost: 48.00 },
+            { id: "p7", name: "Ferodo Dot 4 Fluid", sku: "FLD-DOT4-500", qty: 1, price: 9.50, cost: 4.20 }
+          ]
+        }
+      ];
+
+      const INITIAL_CORES = [
+        { id: "CR-201", part: "Valeo 120A Reman Alternator", plate: "B 1234 XYZ", supplier: "EuroParts Dist. Warehouse", deposit: 60.00, status: "Warehouse Storage" },
+        { id: "CR-202", part: "Bosch Starter Motor 1.4kW", plate: "D 7714 QWE", supplier: "LKQ Auto Components", deposit: 50.00, status: "Removed from Car" }
+      ];
+
+      const INITIAL_DRAFTS = [
+        { id: "VD-801", text: "Took 2 liters 5W-30 oil for plate B 1234 XYZ", part: "Castrol Edge 5W-30 Full Synthetic Oil (1L)", qty: 2, plate: "B 1234 XYZ", status: "Pending", time: "10:14 AM" }
+      ];
+
+      const INITIAL_AUDIT = [
+        { id: "a1", time: "Today, 08:45 AM", sku: "OIL-5W30-SYN", name: "Castrol Edge 5W-30 Oil", type: "JOB_ASSIGNED", delta: -5, reason: "Assigned to #WO-1042", mechanic: "Dave Miller", after: 4 },
+        { id: "a2", time: "Today, 09:20 AM", sku: "SPK-NGK-ILZ", name: "NGK Iridium Spark Plug", type: "JOB_ASSIGNED", delta: -4, reason: "Assigned to #WO-1043", mechanic: "Alex Rivera", after: 6 }
+      ];
+
+      const INSPECTION_PRESETS = [
+        {
+          name: "Worn Front Brake Pad Set (2.1mm Remaining)",
+          health: 14,
+          label: "Severe Wear - Metal on Metal Risk",
+          oe: "OE 8V0698151C",
+          action: "Immediate replacement recommended. Rotor resurface required.",
+          matchedPartId: "p4",
+          aftermarket: [
+            { brand: "Brembo (In Stock)", code: "BRK-BRM-844", ready: true, stock: 5, price: 85.00 },
+            { brand: "Akebono Euro", code: "ACT1760", ready: false, stock: 0, price: 92.00 },
+            { brand: "Textar German", code: "2568301", ready: false, stock: 0, price: 78.50 }
+          ]
+        },
+        {
+          name: "Corroded Alternator (Diode Pack Short)",
+          health: 8,
+          label: "Internal Burn - Core Deposit Eligible",
+          oe: "OE 06F903023F",
+          action: "Swap with Reman unit & claim $60 supplier core credit.",
+          matchedPartId: "p5",
+          aftermarket: [
+            { brand: "Valeo Reman (In Stock)", code: "ALT-VAL-120", ready: true, stock: 2, price: 240.00 },
+            { brand: "Bosch OE Spec", code: "AL0844X", ready: false, stock: 0, price: 275.00 }
+          ]
+        },
+        {
+          name: "Carbon-Fouled Spark Plug (Worn Tip)",
+          health: 22,
+          label: "Gap Exceeded - Cylinder Misfire Risk",
+          oe: "OE 101905626",
+          action: "Replace full set of 4 cylinders.",
+          matchedPartId: "p3",
+          aftermarket: [
+            { brand: "NGK Iridium (In Stock)", code: "SPK-NGK-ILZ", ready: true, stock: 6, price: 12.00 },
+            { brand: "Denso Iridium TT", code: "IK20TT", ready: false, stock: 0, price: 13.50 }
+          ]
+        }
+      ];
+
+      // SAFE STORAGE UTILS (Deep copy fallback to prevent reference contamination)
+      function safeLoad(key, fallback) {
+        try {
+          const raw = localStorage.getItem('autostock_' + key);
+          return raw ? JSON.parse(raw) : JSON.parse(JSON.stringify(fallback));
+        } catch (e) {
+          console.warn('LocalStorage read fallback for ' + key, e);
+          return JSON.parse(JSON.stringify(fallback));
+        }
+      }
+
+      function safeSave(key, val) {
+        try {
+          localStorage.setItem('autostock_' + key, JSON.stringify(val));
+        } catch (e) {
+          console.warn('LocalStorage write error', e);
+        }
+      }
+
+      // STATE CONTAINER
+      const state = {
+        currentTab: 'workshop',
+        workshopSubTab: 'jobs',
+        isOnline: safeLoad('isOnline', true),
+        isRecording: false,
+        flashOn: false,
+        selectedCategory: 'All',
+        searchQuery: '',
+        auditFilter: 'ALL',
+        activeScanPresetIndex: 0,
+
+        // Data arrays
+        parts: safeLoad('parts', INITIAL_PARTS),
+        jobs: safeLoad('jobs', INITIAL_JOBS),
+        cores: safeLoad('cores', INITIAL_CORES),
+        drafts: safeLoad('drafts', INITIAL_DRAFTS),
+        audit: safeLoad('audit', INITIAL_AUDIT),
+        syncQueue: safeLoad('syncQueue', [
+          { id: "sq1", type: "STOCK_DEDUCTION", text: "Deducted 5x OIL-5W30-SYN for #WO-1042", time: "08:45 AM", status: "Synced" }
+        ]),
+
+        // Modal context states
+        modalDeductJobId: null,
+        modalDeductPartId: null,
+        modalDeductQty: 1,
+        modalPackPartId: null,
+        modalPackQty: 1
+      };
+
+      // SAFE LUCIDE CALL (Prevents crashes if CDN is delayed or offline)
+      function safeCreateIcons() {
+        try {
+          if (window.lucide && typeof window.lucide.createIcons === 'function') {
+            window.lucide.createIcons();
+          }
+        } catch (e) {
+          console.warn('Lucide icon render caught:', e);
+        }
+      }
+
+      // SPEECH RECOGNITION INSTANCE (Browser Compatibility)
+      let recognition = null;
+      let recognitionTimeout = null;
+
+      function initSpeechAPI() {
+        try {
+          const SpeechClass = window.SpeechRecognition || window.webkitSpeechRecognition;
+          if (SpeechClass) {
+            recognition = new SpeechClass();
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            recognition.lang = 'en-US';
+
+            recognition.onresult = function (event) {
+              try {
+                if (event.results && event.results[0] && event.results[0][0]) {
+                  const spoken = event.results[0][0].transcript;
+                  window.app.processSpokenVoice(spoken);
+                }
+              } catch (err) {
+                console.warn('Speech onresult error:', err);
+              }
+            };
+
+            recognition.onerror = function (err) {
+              console.warn('SpeechRecognition error or permission issue:', err);
+              window.app.stopVoiceRecording();
+            };
+
+            recognition.onend = function () {
+              window.app.stopVoiceRecording();
+            };
+          }
+        } catch (e) {
+          console.warn('Web Speech API not available on this device:', e);
+        }
+      }
+
+      // CAMERA HARDWARE CLEANUP & STREAM HANDLERS
+      let cameraStream = null;
+
+      async function startCameraStream() {
+        try {
+          const video = document.getElementById('camera-preview-video');
+          if (!video) return;
+
+          if (navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === 'function') {
+            cameraStream = await navigator.mediaDevices.getUserMedia({
+              video: { facingMode: { ideal: 'environment' } },
+              audio: false
+            });
+            video.srcObject = cameraStream;
+            video.classList.remove('hidden');
+            await video.play().catch(e => console.warn('Video auto-play warning:', e));
+          }
+        } catch (e) {
+          console.warn('Camera access unavailable, keeping simulated viewfinder:', e);
+          const video = document.getElementById('camera-preview-video');
+          if (video) video.classList.add('hidden');
+        }
+      }
+
+      function stopCameraStream() {
+        try {
+          if (cameraStream) {
+            cameraStream.getTracks().forEach(track => {
+              try { track.stop(); } catch (e) {}
+            });
+            cameraStream = null;
+          }
+          const video = document.getElementById('camera-preview-video');
+          if (video) {
+            video.srcObject = null;
+            video.classList.add('hidden');
+          }
+        } catch (e) {
+          console.warn('Camera stop error', e);
+        }
+      }
+
+      // NLP SPEECH PARSER
+      function parseVoiceTranscript(raw) {
+        const lower = (raw || '').toLowerCase();
+        let qty = 1;
+        const qtyMatch = lower.match(/(\d+)\s*(liters?|ltr|bottle|pack|set|units?|box|pieces?|pcs)?/);
+        if (qtyMatch && qtyMatch[1]) {
+          qty = parseInt(qtyMatch[1], 10) || 1;
+        }
+
+        // Match part in inventory
+        let matchedPart = state.parts.find(p => {
+          const n = (p.name || '').toLowerCase();
+          const sku = (p.sku || '').toLowerCase();
+          if (lower.includes('5w-30') || (lower.includes('oil') && n.includes('5w-30'))) return n.includes('5w-30');
+          if (lower.includes('filter') && n.includes('filter')) return true;
+          if (lower.includes('spark') || lower.includes('plug')) return n.includes('spark');
+          if (lower.includes('brake') || lower.includes('pad')) return n.includes('brake');
+          if (lower.includes('alternator') && n.includes('alternator')) return true;
+          return lower.includes(sku);
+        });
+
+        const partName = matchedPart ? matchedPart.name : (state.parts[0] ? state.parts[0].name : "Castrol Edge 5W-30 Full Synthetic Oil (1L)");
+
+        // Match Plate
+        let plate = "B 1234 XYZ";
+        const plateMatch = raw.match(/([a-zA-Z]{1,2}\s*\d{1,4}\s*[a-zA-Z]{1,3})/);
+        if (plateMatch && plateMatch[1]) {
+          plate = plateMatch[1].trim().toUpperCase();
+        }
+
+        return { qty: Math.max(1, qty), partName: partName, plate: plate };
+      }
+
+      // AUDIT & SYNC DISPATCHERS
+      function addAuditLog(sku, name, type, delta, reason, mechanic, balanceAfter) {
+        try {
+          const entry = {
+            id: 'aud_' + Date.now().toString(36),
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            sku: sku || 'PART',
+            name: name || 'General Part',
+            type: type || 'STOCK_ADJUSTED',
+            delta: delta || 0,
+            reason: reason || 'Bay movement',
+            mechanic: mechanic || 'Dave Miller',
+            after: Math.max(0, balanceAfter || 0)
+          };
+          state.audit.unshift(entry);
+          safeSave('audit', state.audit);
+        } catch (e) {
+          console.warn('addAuditLog error:', e);
+        }
+      }
+
+      function queueSync(type, summary) {
+        try {
+          const item = {
+            id: 'sq_' + Math.random().toString(36).substring(2, 7),
+            type: type,
+            text: summary,
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            status: state.isOnline ? 'Synced' : 'Pending'
+          };
+          state.syncQueue.unshift(item);
+          safeSave('syncQueue', state.syncQueue);
+        } catch (e) {
+          console.warn('queueSync error:', e);
+        }
+      }
+
+      // APPLICATION CONTROLLER (Global namespace)
+      window.app = {
+        // TAB SWITCHER
+        switchTab: function (tabKey) {
+          try {
+            if (state.currentTab === 'scan' && tabKey !== 'scan') {
+              stopCameraStream();
+            }
+
+            state.currentTab = tabKey;
+            const tabs = ['workshop', 'stock', 'scan', 'audit', 'sync'];
+            tabs.forEach(t => {
+              const view = document.getElementById('view-' + t);
+              const btn = document.getElementById('nav-btn-' + t);
+              if (!view || !btn) return;
+
+              const label = btn.querySelector('.nav-label');
+              if (t === tabKey) {
+                view.classList.remove('hidden');
+                btn.className = 'touch-target flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-[#0F2C59] text-white font-bold text-xs shadow transition-all';
+                if (label) label.classList.remove('hidden');
+              } else {
+                view.classList.add('hidden');
+                btn.className = 'touch-target relative flex items-center gap-1.5 px-2.5 py-2 rounded-full text-[#64748B] hover:text-[#0F2C59] font-medium text-xs transition-all';
+                if (label) label.classList.add('hidden');
+              }
+            });
+
+            if (tabKey === 'scan') {
+              startCameraStream();
+            }
+
+            this.render();
+          } catch (e) {
+            console.error('switchTab error:', e);
+          }
+        },
+
+        // WORKSHOP SUB-TABS
+        setWorkshopSubTab: function (sub) {
+          try {
+            state.workshopSubTab = sub;
+            const subs = ['jobs', 'voice', 'cores'];
+            subs.forEach(s => {
+              const el = document.getElementById('workshop-sub-' + s);
+              const btn = document.getElementById('subtab-' + s);
+              if (!el || !btn) return;
+
+              if (s === sub) {
+                el.classList.remove('hidden');
+                btn.className = 'flex-1 py-2 rounded-lg text-white bg-[#0F2C59] font-bold flex items-center justify-center gap-1 transition-all shadow-sm';
+              } else {
+                el.classList.add('hidden');
+                btn.className = 'flex-1 py-2 rounded-lg text-[#64748B] hover:text-[#0F2C59] font-medium flex items-center justify-center gap-1 transition-all';
+              }
+            });
+            this.render();
+          } catch (e) {
+            console.error('setWorkshopSubTab error:', e);
+          }
+        },
+
+        // NETWORK MODE TOGGLE
+        toggleOnline: function () {
+          try {
+            state.isOnline = !state.isOnline;
+            safeSave('isOnline', state.isOnline);
+            this.render();
+          } catch (e) {
+            console.error('toggleOnline error:', e);
+          }
+        },
+
+        // INVENTORY QUANTITY ADJUSTER (+/- with zero-floor safeguard)
+        adjustStockQty: function (partId, delta) {
+          try {
+            const part = state.parts.find(p => p.id === partId);
+            if (!part) return;
+
+            const oldQty = part.qty || 0;
+            const newQty = Math.max(0, oldQty + delta);
+            if (oldQty === newQty) return; // Prevent negative or redundant deduction
+
+            part.qty = newQty;
+            safeSave('parts', state.parts);
+
+            const actualDelta = newQty - oldQty;
+            addAuditLog(part.sku, part.name, actualDelta < 0 ? 'STOCK_DEDUCTED' : 'STOCK_ADDED', actualDelta, 'Manual bay adjustment', 'Dave Miller', newQty);
+            queueSync('STOCK_ADJUSTMENT', `Adjusted ${part.sku} (${actualDelta > 0 ? '+' : ''}${actualDelta}). Balance: ${newQty}`);
+            this.render();
+          } catch (e) {
+            console.error('adjustStockQty error:', e);
+          }
+        },
+
+        // VOICE RECOGNITION & PRESETS
+        toggleVoiceRecording: function () {
+          if (state.isRecording) {
+            this.stopVoiceRecording();
+          } else {
+            this.startVoiceRecording();
+          }
+        },
+
+        startVoiceRecording: function () {
+          try {
+            state.isRecording = true;
+            const statusText = document.getElementById('voice-transcript-text');
+            const badge = document.getElementById('voice-listening-badge');
+            const micBtn = document.getElementById('voice-mic-btn');
+            const micStatus = document.getElementById('voice-mic-status');
+
+            if (badge) badge.classList.remove('hidden');
+            if (statusText) statusText.textContent = "Listening... Speak part name, quantity, and vehicle license plate...";
+            if (micBtn) micBtn.className = 'touch-target w-16 h-16 rounded-full bg-[#DC2626] text-white flex items-center justify-center shadow-lg active:scale-95 transition-all mic-pulse';
+            if (micStatus) micStatus.textContent = "Recording active. Speak clearly or tap to stop.";
+
+            // Hardware Web Speech API trigger with defensive try-catch
+            let hardwareActive = false;
+            if (recognition) {
+              try {
+                recognition.start();
+                hardwareActive = true;
+              } catch (e) {
+                console.warn('Recognition start caught', e);
+              }
+            }
+
+            // Fallback simulation timer if speech API is unavailable or silent
+            clearTimeout(recognitionTimeout);
+            recognitionTimeout = setTimeout(() => {
+              if (state.isRecording) {
+                this.applyVoicePreset('Took 2 liters 5W-30 oil for plate B 1234 XYZ');
+              }
+            }, hardwareActive ? 6000 : 3500);
+          } catch (e) {
+            console.error('startVoiceRecording error:', e);
+            this.stopVoiceRecording();
+          }
+        },
+
+        stopVoiceRecording: function () {
+          try {
+            state.isRecording = false;
+            clearTimeout(recognitionTimeout);
+            if (recognition) {
+              try { recognition.stop(); } catch (e) {}
+            }
+
+            const badge = document.getElementById('voice-listening-badge');
+            const micBtn = document.getElementById('voice-mic-btn');
+            const micStatus = document.getElementById('voice-mic-status');
+
+            if (badge) badge.classList.add('hidden');
+            if (micBtn) micBtn.className = 'touch-target w-16 h-16 rounded-full bg-[#0F2C59] text-white flex items-center justify-center shadow-lg active:scale-95 transition-all';
+            if (micStatus) micStatus.textContent = "Tap Mic to speak or click quick presets:";
+          } catch (e) {
+            console.warn('stopVoiceRecording caught:', e);
+          }
+        },
+
+        applyVoicePreset: function (presetText) {
+          this.stopVoiceRecording();
+          const transcriptEl = document.getElementById('voice-transcript-text');
+          if (transcriptEl) transcriptEl.textContent = `"${presetText}"`;
+          this.processSpokenVoice(presetText);
+        },
+
+        processSpokenVoice: function (spokenText) {
+          try {
+            const parsed = parseVoiceTranscript(spokenText);
+            const newDraft = {
+              id: 'VD-' + Math.floor(100 + Math.random() * 900),
+              text: spokenText,
+              part: parsed.partName,
+              qty: parsed.qty,
+              plate: parsed.plate,
+              status: 'Pending',
+              time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            };
+
+            state.drafts.unshift(newDraft);
+            safeSave('drafts', state.drafts);
+            queueSync('VOICE_DRAFT', `Logged voice draft ${newDraft.id} for plate ${newDraft.plate}`);
+            this.render();
+          } catch (e) {
+            console.error('processSpokenVoice error:', e);
+          }
+        },
+
+        confirmVoiceDraft: function (draftId) {
+          try {
+            const draft = state.drafts.find(d => d.id === draftId);
+            if (!draft || draft.status !== 'Pending') return;
+
+            const part = state.parts.find(p => (p.name || '').toLowerCase().includes(draft.part.toLowerCase())) || state.parts[0];
+            if (!part) {
+              alert('Target part could not be found in inventory.');
+              return;
+            }
+
+            if (part.qty < draft.qty) {
+              alert(`Insufficient inventory! Only ${part.qty} units available for ${part.name}`);
+              return;
+            }
+
+            // Match active job card by plate (normalizing spaces)
+            const draftPlateNorm = (draft.plate || '').replace(/\s+/g, '').toUpperCase();
+            const targetJob = state.jobs.find(j => j.status === 'Active' && (j.plate || '').replace(/\s+/g, '').toUpperCase() === draftPlateNorm);
+            part.qty = Math.max(0, part.qty - draft.qty);
+
+            if (targetJob) {
+              if (!Array.isArray(targetJob.partsUsed)) targetJob.partsUsed = [];
+              const existing = targetJob.partsUsed.find(p => p.id === part.id);
+              if (existing) {
+                existing.qty += draft.qty;
+              } else {
+                targetJob.partsUsed.push({
+                  id: part.id,
+                  name: part.name,
+                  sku: part.sku,
+                  qty: draft.qty,
+                  price: part.price || 0,
+                  cost: part.cost || 0
+                });
+              }
+              addAuditLog(part.sku, part.name, 'JOB_ASSIGNED', -draft.qty, `Assigned via voice draft to #${targetJob.id}`, 'Dave Miller', part.qty);
+            } else {
+              addAuditLog(part.sku, part.name, 'STOCK_DEDUCTED', -draft.qty, `Voice allocation for plate ${draft.plate}`, 'Dave Miller', part.qty);
+            }
+
+            draft.status = 'Confirmed';
+            safeSave('drafts', state.drafts);
+            safeSave('parts', state.parts);
+            safeSave('jobs', state.jobs);
+            queueSync('VOICE_CONFIRMED', `Confirmed voice draft ${draft.id}`);
+            this.render();
+          } catch (e) {
+            console.error('confirmVoiceDraft error:', e);
+          }
+        },
+
+        rejectVoiceDraft: function (draftId) {
+          try {
+            const draft = state.drafts.find(d => d.id === draftId);
+            if (draft) {
+              draft.status = 'Rejected';
+              safeSave('drafts', state.drafts);
+              this.render();
+            }
+          } catch (e) {
+            console.error('rejectVoiceDraft error:', e);
+          }
+        },
+
+        // DEDUCT & ASSIGN MODAL
+        openDeductModal: function (jobId) {
+          try {
+            state.modalDeductJobId = jobId;
+            state.modalDeductQty = 1;
+            const available = state.parts.filter(p => p.qty > 0);
+            state.modalDeductPartId = available.length > 0 ? available[0].id : (state.parts[0] ? state.parts[0].id : null);
+
+            const titleJob = document.getElementById('modal-deduct-job-id');
+            if (titleJob) titleJob.textContent = '#' + jobId;
+
+            const qtyVal = document.getElementById('modal-deduct-qty-val');
+            if (qtyVal) qtyVal.textContent = state.modalDeductQty;
+
+            this.renderDeductModalParts();
+            this.openModal('modal-deduct-part');
+          } catch (e) {
+            console.error('openDeductModal error:', e);
+          }
+        },
+
+        selectDeductPart: function (partId) {
+          try {
+            state.modalDeductPartId = partId;
+            state.modalDeductQty = 1;
+            const qtyVal = document.getElementById('modal-deduct-qty-val');
+            if (qtyVal) qtyVal.textContent = state.modalDeductQty;
+            this.renderDeductModalParts();
+          } catch (e) {
+            console.error('selectDeductPart error:', e);
+          }
+        },
+
+        stepDeductQty: function (delta) {
+          try {
+            const part = state.parts.find(p => p.id === state.modalDeductPartId);
+            if (!part) return;
+            const maxAllowed = Math.max(1, part.qty);
+            state.modalDeductQty = Math.max(1, Math.min(maxAllowed, state.modalDeductQty + delta));
+            const el = document.getElementById('modal-deduct-qty-val');
+            if (el) el.textContent = state.modalDeductQty;
+          } catch (e) {
+            console.error('stepDeductQty error:', e);
+          }
+        },
+
+        confirmDeductPart: function () {
+          try {
+            if (!state.modalDeductJobId || !state.modalDeductPartId) return;
+            const job = state.jobs.find(j => j.id === state.modalDeductJobId);
+            const part = state.parts.find(p => p.id === state.modalDeductPartId);
+            const qty = state.modalDeductQty || 1;
+
+            if (!job || !part || part.qty < qty) {
+              alert('Cannot deduct specified quantity. Check stock availability.');
+              return;
+            }
+
+            part.qty = Math.max(0, part.qty - qty);
+            if (!Array.isArray(job.partsUsed)) job.partsUsed = [];
+            const existing = job.partsUsed.find(p => p.id === part.id);
+            if (existing) {
+              existing.qty += qty;
+            } else {
+              job.partsUsed.push({
+                id: part.id,
+                name: part.name,
+                sku: part.sku,
+                qty: qty,
+                price: part.price || 0,
+                cost: part.cost || 0
+              });
+            }
+
+            addAuditLog(part.sku, part.name, 'JOB_ASSIGNED', -qty, `Assigned to #${job.id} (${job.plate})`, 'Dave Miller', part.qty);
+            queueSync('JOB_DEDUCTION', `Assigned ${qty}x ${part.sku} to #${job.id}`);
+
+            safeSave('parts', state.parts);
+            safeSave('jobs', state.jobs);
+            this.closeModal('modal-deduct-part');
+            this.render();
+          } catch (e) {
+            console.error('confirmDeductPart error:', e);
+          }
+        },
+
+        // BULK PACK CONVERSION MODAL
+        openPackModal: function (partId) {
+          try {
+            const part = state.parts.find(p => p.id === partId);
+            if (!part) return;
+
+            state.modalPackPartId = partId;
+            state.modalPackQty = 1;
+
+            const nameEl = document.getElementById('modal-pack-part-name');
+            const specEl = document.getElementById('modal-pack-spec');
+            const countEl = document.getElementById('modal-pack-count');
+            const sumEl = document.getElementById('modal-pack-summary');
+
+            const pUnit = part.packUnit || 'Pack';
+            const pRatio = part.packRatio || 1;
+
+            if (nameEl) nameEl.textContent = part.name;
+            if (specEl) specEl.textContent = `Pack Specification: 1 ${pUnit} = ${pRatio} Individual Units`;
+            if (countEl) countEl.textContent = state.modalPackQty;
+            if (sumEl) sumEl.textContent = `= Adding +${state.modalPackQty * pRatio} units to stock`;
+
+            this.openModal('modal-pack-conversion');
+          } catch (e) {
+            console.error('openPackModal error:', e);
+          }
+        },
+
+        stepPackQty: function (delta) {
+          try {
+            const part = state.parts.find(p => p.id === state.modalPackPartId);
+            if (!part) return;
+            state.modalPackQty = Math.max(1, state.modalPackQty + delta);
+            const pRatio = part.packRatio || 1;
+
+            const countEl = document.getElementById('modal-pack-count');
+            const sumEl = document.getElementById('modal-pack-summary');
+            if (countEl) countEl.textContent = state.modalPackQty;
+            if (sumEl) sumEl.textContent = `= Adding +${state.modalPackQty * pRatio} units to stock`;
+          } catch (e) {
+            console.error('stepPackQty error:', e);
+          }
+        },
+
+        confirmPackConversion: function () {
+          try {
+            const part = state.parts.find(p => p.id === state.modalPackPartId);
+            if (!part) return;
+
+            const pRatio = part.packRatio || 1;
+            const pUnit = part.packUnit || 'Pack';
+            const addedUnits = state.modalPackQty * pRatio;
+
+            part.qty = (part.qty || 0) + addedUnits;
+            safeSave('parts', state.parts);
+
+            addAuditLog(part.sku, part.name, 'PACK_CONVERTED', addedUnits, `Unpacked ${state.modalPackQty}x ${pUnit}`, 'Inventory Admin', part.qty);
+            queueSync('PACK_CONVERSION', `Unpacked ${state.modalPackQty}x ${pUnit} (+${addedUnits} units)`);
+
+            this.closeModal('modal-pack-conversion');
+            this.render();
+          } catch (e) {
+            console.error('confirmPackConversion error:', e);
+          }
+        },
+
+        // QUICK REORDER FORECAST ACTION
+        quickReorderOil: function () {
+          try {
+            const oil = state.parts.find(p => p.sku === 'OIL-5W30-SYN');
+            if (oil) {
+              oil.qty = (oil.qty || 0) + 24;
+              safeSave('parts', state.parts);
+              addAuditLog(oil.sku, oil.name, 'STOCK_ADDED', 24, 'Auto-reorder delivery received (2x 12L box)', 'Automated PO', oil.qty);
+              queueSync('AUTO_REORDER', 'Received 24L Castrol 5W-30 Oil');
+              alert('✓ Stock restocked: +24 units Castrol 5W-30 Oil added to warehouse!');
+              this.render();
+            }
+          } catch (e) {
+            console.error('quickReorderOil error:', e);
+          }
+        },
+
+        // CORE STATUS PIPELINE STEPPER
+        advanceCoreStatus: function (coreId) {
+          try {
+            const core = state.cores.find(c => c.id === coreId);
+            if (!core) return;
+
+            if (core.status === 'Removed from Car') {
+              core.status = 'Warehouse Storage';
+              addAuditLog('CORE', core.part, 'CORE_STORED', 1, `Core ${core.id} staged in warehouse`, 'Dave Miller', 1);
+            } else if (core.status === 'Warehouse Storage') {
+              core.status = 'Returned to Supplier';
+              addAuditLog('CORE', core.part, 'CORE_CLAIMED', 1, `Core ${core.id} credit claimed ($${(core.deposit || 0).toFixed(2)})`, 'Supplier Logistics', 0);
+            }
+
+            safeSave('cores', state.cores);
+            queueSync('CORE_STATUS', `${core.id} updated to ${core.status}`);
+            this.render();
+          } catch (e) {
+            console.error('advanceCoreStatus error:', e);
+          }
+        },
+
+        // NEW WORK ORDER MODAL
+        confirmCreateJob: function () {
+          try {
+            const plateInput = document.getElementById('new-job-plate');
+            const customerInput = document.getElementById('new-job-customer');
+            const modelInput = document.getElementById('new-job-model');
+            const mechanicInput = document.getElementById('new-job-mechanic');
+
+            const plate = (plateInput?.value || '').trim().toUpperCase();
+            const customer = (customerInput?.value || '').trim();
+            const model = (modelInput?.value || 'Sedan').trim();
+            const mechanic = (mechanicInput?.value || 'Dave Miller').trim();
+
+            if (!plate || !customer) {
+              alert('Please enter both vehicle plate and customer name.');
+              return;
+            }
+
+            const newJob = {
+              id: 'WO-' + Math.floor(1050 + Math.random() * 900),
+              plate: plate,
+              customer: customer,
+              model: model,
+              mechanic: mechanic,
+              status: 'Active',
+              laborHours: 1.5,
+              partsUsed: []
+            };
+
+            state.jobs.unshift(newJob);
+            safeSave('jobs', state.jobs);
+            queueSync('JOB_CREATED', `Opened new work order #${newJob.id}`);
+
+            // Reset inputs for next modal open
+            if (plateInput) plateInput.value = '';
+            if (customerInput) customerInput.value = '';
+            if (modelInput) modelInput.value = '';
+            if (mechanicInput) mechanicInput.value = 'Dave Miller';
+
+            this.closeModal('modal-new-job');
+            this.render();
+          } catch (e) {
+            console.error('confirmCreateJob error:', e);
+          }
+        },
+
+        completeJobCard: function (jobId) {
+          try {
+            const job = state.jobs.find(j => j.id === jobId);
+            if (!job || job.status === 'Completed') return;
+
+            job.status = 'Completed';
+            safeSave('jobs', state.jobs);
+            queueSync('JOB_COMPLETED', `Completed #${job.id}`);
+            this.render();
+          } catch (e) {
+            console.error('completeJobCard error:', e);
+          }
+        },
+
+        // NEW CORE MODAL
+        confirmCreateCore: function () {
+          try {
+            const partInput = document.getElementById('new-core-part');
+            const plateInput = document.getElementById('new-core-plate');
+            const supplierInput = document.getElementById('new-core-supplier');
+            const depositInput = document.getElementById('new-core-deposit');
+
+            const part = (partInput?.value || 'Core Part').trim();
+            const plate = (plateInput?.value || '').trim().toUpperCase();
+            const supplier = (supplierInput?.value || 'Distributor').trim();
+            const deposit = parseFloat(depositInput?.value) || 50.00;
+
+            if (!plate) {
+              alert('Please enter vehicle license plate.');
+              return;
+            }
+
+            const newCore = {
+              id: 'CR-' + Math.floor(205 + Math.random() * 700),
+              part: part,
+              plate: plate,
+              supplier: supplier,
+              deposit: Math.max(0, deposit),
+              status: 'Removed from Car'
+            };
+
+            state.cores.unshift(newCore);
+            safeSave('cores', state.cores);
+            queueSync('CORE_LOGGED', `Logged core return ${newCore.id} for ${newCore.plate}`);
+
+            // Reset inputs
+            if (partInput) partInput.value = 'Denso AC Compressor (Sanden Pattern)';
+            if (plateInput) plateInput.value = '';
+            if (supplierInput) supplierInput.value = 'EuroParts Dist. Warehouse';
+            if (depositInput) depositInput.value = '80.00';
+
+            this.closeModal('modal-new-core');
+            this.render();
+          } catch (e) {
+            console.error('confirmCreateCore error:', e);
+          }
+        },
+
+        // CAMERA SIMULATION & CAPTURE
+        triggerCameraCapture: function () {
+          try {
+            alert('✓ Part image captured! Running AI Vision Copilot wear analysis...');
+            state.activeScanPresetIndex = 0;
+            this.renderScanResult();
+          } catch (e) {
+            console.error('triggerCameraCapture error:', e);
+          }
+        },
+
+        selectScanPreset: function (idx) {
+          try {
+            state.activeScanPresetIndex = Math.max(0, Math.min(INSPECTION_PRESETS.length - 1, idx));
+            this.renderScanResult();
+          } catch (e) {
+            console.error('selectScanPreset error:', e);
+          }
+        },
+
+        toggleFlash: function () {
+          try {
+            state.flashOn = !state.flashOn;
+            if (cameraStream) {
+              const videoTrack = cameraStream.getVideoTracks()[0];
+              if (videoTrack && typeof videoTrack.applyConstraints === 'function') {
+                videoTrack.applyConstraints({
+                  advanced: [{ torch: state.flashOn }]
+                }).catch(e => console.warn('Torch constraint not supported:', e));
+              }
+            }
+
+            const btn = document.getElementById('flash-toggle-btn');
+            if (btn) {
+              btn.className = state.flashOn
+                ? 'touch-target w-9 h-9 rounded-full bg-[#FACC15] text-black flex items-center justify-center backdrop-blur shadow'
+                : 'touch-target w-9 h-9 rounded-full bg-black/60 text-white flex items-center justify-center backdrop-blur';
+            }
+          } catch (e) {
+            console.warn('toggleFlash error:', e);
+          }
+        },
+
+        assignScannedPartToJob: function (partId) {
+          try {
+            const activeJob = state.jobs.find(j => j.status === 'Active');
+            if (!activeJob) {
+              alert('No active Job Cards available to assign this part.');
+              return;
+            }
+
+            const part = state.parts.find(p => p.id === partId);
+            if (!part || (part.qty || 0) <= 0) {
+              alert('This part is currently out of stock in warehouse.');
+              return;
+            }
+
+            part.qty = Math.max(0, part.qty - 1);
+            if (!Array.isArray(activeJob.partsUsed)) activeJob.partsUsed = [];
+            const existing = activeJob.partsUsed.find(p => p.id === part.id);
+            if (existing) {
+              existing.qty += 1;
+            } else {
+              activeJob.partsUsed.push({
+                id: part.id,
+                name: part.name,
+                sku: part.sku,
+                qty: 1,
+                price: part.price || 0,
+                cost: part.cost || 0
+              });
+            }
+
+            addAuditLog(part.sku, part.name, 'JOB_ASSIGNED', -1, `Assigned from AI Scanner to #${activeJob.id}`, 'Dave Miller', part.qty);
+            queueSync('SCAN_ASSIGN', `Assigned ${part.sku} to #${activeJob.id}`);
+
+            safeSave('parts', state.parts);
+            safeSave('jobs', state.jobs);
+            alert(`✓ Assigned 1x ${part.name} to Job #${activeJob.id} (${activeJob.plate})!`);
+            this.render();
+          } catch (e) {
+            console.error('assignScannedPartToJob error:', e);
+          }
+        },
+
+        // SYNC TRIGGER
+        triggerSync: function () {
+          try {
+            const btn = document.getElementById('btn-sync-now');
+            const label = document.getElementById('btn-sync-label');
+
+            if (!state.isOnline) {
+              alert('App is in Offline Mode. Toggling to Cloud Sync to push queued operations...');
+              state.isOnline = true;
+              safeSave('isOnline', true);
+            }
+
+            if (label) label.textContent = 'Syncing...';
+            if (btn) btn.disabled = true;
+
+            setTimeout(() => {
+              state.syncQueue.forEach(item => { item.status = 'Synced'; });
+              safeSave('syncQueue', state.syncQueue);
+              if (label) label.textContent = 'Sync Now';
+              if (btn) btn.disabled = false;
+              this.render();
+            }, 750);
+          } catch (e) {
+            console.error('triggerSync error:', e);
+          }
+        },
+
+        // SEARCH & FILTER
+        handleSearch: function (val) {
+          try {
+            state.searchQuery = val || '';
+            this.renderStockList();
+          } catch (e) {
+            console.error('handleSearch error:', e);
+          }
+        },
+
+        selectCategory: function (cat) {
+          try {
+            state.selectedCategory = cat || 'All';
+            this.render();
+          } catch (e) {
+            console.error('selectCategory error:', e);
+          }
+        },
+
+        setAuditFilter: function (filter) {
+          try {
+            state.auditFilter = filter;
+            const btns = document.querySelectorAll('.audit-filter-btn');
+            btns.forEach(b => {
+              if (b.textContent.includes(filter) || (filter === 'ALL' && b.textContent.includes('All'))) {
+                b.className = 'audit-filter-btn px-3 py-1.5 rounded-lg text-xs font-bold bg-[#0F2C59] text-white';
+              } else {
+                b.className = 'audit-filter-btn px-3 py-1.5 rounded-lg text-xs font-medium bg-white border border-[#E2E8F0] text-[#0F172A]';
+              }
+            });
+            this.renderAuditList();
+          } catch (e) {
+            console.error('setAuditFilter error:', e);
+          }
+        },
+
+        // MODAL HELPERS
+        openModal: function (id) {
+          try {
+            const el = document.getElementById(id);
+            if (el) el.classList.remove('hidden');
+          } catch (e) {}
+        },
+
+        closeModal: function (id) {
+          try {
+            const el = document.getElementById(id);
+            if (el) el.classList.add('hidden');
+          } catch (e) {}
+        },
+
+        // RENDER HELPERS
+        renderDeductModalParts: function () {
+          try {
+            const container = document.getElementById('modal-deduct-parts-list');
+            if (!container) return;
+
+            const available = state.parts.filter(p => (p.qty || 0) > 0);
+            if (available.length === 0) {
+              container.innerHTML = '<p class="text-xs text-[#64748B] italic p-3 text-center">No parts currently in stock.</p>';
+              return;
+            }
+
+            container.innerHTML = available.map(p => {
+              const isSel = p.id === state.modalDeductPartId;
+              const price = typeof p.price === 'number' ? p.price.toFixed(2) : '0.00';
+              return `
+                <div onclick="window.app.selectDeductPart('${p.id}')" class="p-2.5 rounded-xl border cursor-pointer flex items-center justify-between transition-colors ${isSel ? 'bg-[#EFF6FF] border-[#0F2C59]' : 'bg-[#F8FAFC] border-[#E2E8F0]'}">
+                  <div>
+                    <p class="text-xs font-bold text-[#0F172A]">${p.name}</p>
+                    <p class="text-[10px] text-[#64748B]">${p.bin || 'Warehouse'} • In Stock: <span class="font-bold text-[#0F2C59]">${p.qty}</span></p>
+                  </div>
+                  <span class="text-xs font-bold text-[#0F2C59]">$${price}</span>
+                </div>
+              `;
+            }).join('');
+          } catch (e) {
+            console.error('renderDeductModalParts error:', e);
+          }
+        },
+
+        renderStockList: function () {
+          try {
+            const list = document.getElementById('stock-inventory-list');
+            if (!list) return;
+
+            const q = (state.searchQuery || '').toLowerCase().trim();
+            const filtered = state.parts.filter(p => {
+              const matchesCat = state.selectedCategory === 'All' || p.category === state.selectedCategory;
+              const matchesQuery = !q ||
+                (p.name && p.name.toLowerCase().includes(q)) ||
+                (p.sku && p.sku.toLowerCase().includes(q)) ||
+                (p.oem && p.oem.toLowerCase().includes(q));
+              return matchesCat && matchesQuery;
+            });
+
+            if (filtered.length === 0) {
+              list.innerHTML = `<div class="bg-white border border-[#E2E8F0] rounded-2xl p-6 text-center text-xs text-[#64748B]">No inventory parts found matching "${state.searchQuery}".</div>`;
+              return;
+            }
+
+            list.innerHTML = filtered.map(p => {
+              const qty = p.qty || 0;
+              const minQty = p.minQty || 0;
+              const isOut = qty <= 0;
+              const isLow = !isOut && qty <= minQty;
+              const price = typeof p.price === 'number' ? p.price.toFixed(2) : '0.00';
+              const cost = typeof p.cost === 'number' ? p.cost.toFixed(2) : '0.00';
+              const deposit = typeof p.deposit === 'number' ? p.deposit.toFixed(0) : '0';
+
+              return `
+                <div class="bg-white border border-[#E2E8F0] rounded-2xl p-4 card-shadow space-y-3">
+                  <div class="flex items-start justify-between">
+                    <div class="space-y-0.5 pr-2">
+                      <div class="flex items-center gap-1.5 text-xs text-[#64748B]">
+                        <span class="font-bold text-[#0F2C59]">${p.sku}</span>
+                        <span>•</span>
+                        <span>${p.category || 'General'}</span>
+                      </div>
+                      <h4 class="text-sm font-bold text-[#0F172A] leading-tight">${p.name}</h4>
+                      <p class="text-[11px] text-[#64748B]">OEM Ref: ${p.oem || 'N/A'}</p>
+                    </div>
+                    <div class="flex flex-col items-end gap-1 shrink-0">
+                      ${isOut ? '<span class="bg-[#FEE2E2] text-[#DC2626] border border-[#FCA5A5] text-[10px] font-bold px-2 py-0.5 rounded">Out of Stock</span>' : ''}
+                      ${isLow ? `<span class="bg-[#FEF3C7] text-[#B45309] border border-[#FDE68A] text-[10px] font-bold px-2 py-0.5 rounded">Low: ${qty} left</span>` : ''}
+                      ${p.core ? `<span class="bg-[#EDE9FE] text-[#6D28D9] border border-[#DDD6FE] text-[10px] font-bold px-2 py-0.5 rounded">Core: $${deposit}</span>` : ''}
+                    </div>
+                  </div>
+
+                  <!-- Bin Location Badge -->
+                  <div class="inline-flex items-center gap-1.5 bg-[#EFF6FF] border border-[#BFDBFE] px-2.5 py-1 rounded-md text-[11px] font-semibold text-[#0F2C59]">
+                    <i data-lucide="map-pin" class="w-3.5 h-3.5 text-[#0F2C59]"></i>
+                    <span>${p.bin || 'Warehouse'}</span>
+                  </div>
+
+                  <div class="pt-2 border-t border-[#E2E8F0] flex items-center justify-between">
+                    <div>
+                      <span class="text-base font-bold text-[#0F2C59]">$${price}</span>
+                      <span class="text-[10px] text-[#64748B] block">Cost: $${cost}</span>
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                      <button onclick="window.app.openPackModal('${p.id}')" class="touch-target px-2.5 py-1.5 bg-[#EFF6FF] border border-[#BFDBFE] text-[#0F2C59] text-xs font-bold rounded-lg flex items-center gap-1 hover:bg-blue-100">
+                        <i data-lucide="package-open" class="w-3.5 h-3.5"></i>
+                        <span>Unpack</span>
+                      </button>
+
+                      <!-- Greasy-hands tactile adjuster -->
+                      <div class="flex items-center bg-[#F1F5F9] border border-[#E2E8F0] rounded-xl p-1">
+                        <button onclick="window.app.adjustStockQty('${p.id}', -1)" class="touch-target w-9 h-9 rounded-lg bg-white border border-[#E2E8F0] font-bold text-sm flex items-center justify-center active:scale-95 text-[#0F172A]">-</button>
+                        <span class="w-9 text-center text-sm font-bold text-[#0F172A]">${qty}</span>
+                        <button onclick="window.app.adjustStockQty('${p.id}', 1)" class="touch-target w-9 h-9 rounded-lg bg-[#0F2C59] text-white font-bold text-sm flex items-center justify-center active:scale-95">+</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              `;
+            }).join('');
+
+            safeCreateIcons();
+          } catch (e) {
+            console.error('renderStockList error:', e);
+          }
+        },
+
+        renderScanResult: function () {
+          try {
+            const container = document.getElementById('scan-result-card');
+            if (!container) return;
+
+            const data = INSPECTION_PRESETS[state.activeScanPresetIndex] || INSPECTION_PRESETS[0];
+            if (!data) return;
+
+            const matchedPart = state.parts.find(p => p.id === data.matchedPartId);
+            const inStock = matchedPart && (matchedPart.qty || 0) > 0;
+
+            container.innerHTML = `
+              <div class="flex items-start justify-between">
+                <div>
+                  <span class="text-[10px] font-bold text-[#64748B] uppercase tracking-wide">AI Vision Component Diagnosis</span>
+                  <h4 class="text-base font-bold text-[#0F172A] mt-0.5">${data.name}</h4>
+                  <p class="text-xs font-bold text-[#0F2C59]">${data.oe}</p>
+                </div>
+                <div class="text-center px-2.5 py-1 rounded-xl ${data.health < 20 ? 'bg-[#FEE2E2] text-[#DC2626]' : 'bg-[#FEF3C7] text-[#B45309]'}">
+                  <span class="text-base font-black leading-none block">${data.health}%</span>
+                  <span class="text-[9px] uppercase font-bold">Life Left</span>
+                </div>
+              </div>
+
+              <div class="bg-[#FEF2F2] border border-[#FCA5A5] p-2.5 rounded-xl text-xs text-[#991B1B] font-medium flex items-center gap-2">
+                <i data-lucide="alert-triangle" class="w-4 h-4 text-[#DC2626] shrink-0"></i>
+                <span>${data.label} • ${data.action}</span>
+              </div>
+
+              <div class="space-y-1.5 pt-2 border-t border-[#E2E8F0]">
+                <span class="text-[10px] font-bold text-[#64748B] uppercase tracking-wider">OEM Cross-Reference Lookup Table</span>
+                <div class="space-y-1.5">
+                  ${(data.aftermarket || []).map(m => `
+                    <div class="p-2 rounded-lg border text-xs flex items-center justify-between ${m.ready ? 'bg-[#DCFCE7]/40 border-[#86EFAC]' : 'bg-[#F8FAFC] border-[#E2E8F0]'}">
+                      <div>
+                        <span class="font-bold text-[#0F172A]">${m.brand}</span>
+                        <span class="text-[#64748B] text-[10px] ml-1">(${m.code})</span>
+                        <span class="block text-[10px] font-semibold ${m.ready ? 'text-[#15803D]' : 'text-[#DC2626]'}">${m.ready ? `✓ In warehouse (${m.stock} units)` : '✗ Out of stock at distributor'}</span>
+                      </div>
+                      <span class="font-bold text-[#0F2C59]">$${(m.price || 0).toFixed(2)}</span>
+                    </div>
+                  `).join('')}
+                </div>
+              </div>
+
+              <button onclick="window.app.assignScannedPartToJob('${data.matchedPartId}')" class="w-full mt-3 py-3 rounded-xl bg-[#0F2C59] text-white text-xs font-bold shadow flex items-center justify-center gap-1.5 active:scale-95 transition-transform touch-target ${!inStock ? 'opacity-80' : ''}">
+                <i data-lucide="check-circle" class="w-4 h-4"></i>
+                <span>${inStock ? 'Deduct & Assign Matched Part to Active Job' : 'Matched Part Out of Stock (Order Needed)'}</span>
+              </button>
+            `;
+
+            // Update preset buttons styling
+            const presetBtns = document.getElementById('scan-preset-buttons');
+            if (presetBtns) {
+              presetBtns.innerHTML = INSPECTION_PRESETS.map((p, idx) => `
+                <button onclick="window.app.selectScanPreset(${idx})" class="p-2 rounded-xl text-xs font-bold border transition-colors ${state.activeScanPresetIndex === idx ? 'bg-[#0F2C59] text-white border-[#0F2C59]' : 'bg-white text-[#0F172A] border-[#E2E8F0] hover:bg-slate-50'}">
+                  ${idx === 0 ? 'Brake Pad' : idx === 1 ? 'Alternator' : 'Spark Plug'}
+                </button>
+              `).join('');
+            }
+
+            safeCreateIcons();
+          } catch (e) {
+            console.error('renderScanResult error:', e);
+          }
+        },
+
+        renderAuditList: function () {
+          try {
+            const list = document.getElementById('audit-logs-list');
+            if (!list) return;
+
+            const filtered = state.auditFilter === 'ALL'
+              ? state.audit
+              : state.audit.filter(a => a.type === state.auditFilter);
+
+            if (filtered.length === 0) {
+              list.innerHTML = '<p class="text-xs text-[#64748B] italic p-4 text-center bg-white rounded-xl border border-[#E2E8F0]">No audit records found.</p>';
+              return;
+            }
+
+            list.innerHTML = filtered.map(a => {
+              const delta = a.delta || 0;
+              const deltaStr = delta > 0 ? `+${delta}` : `${delta}`;
+              return `
+                <div class="bg-white border border-[#E2E8F0] rounded-xl p-3 card-shadow space-y-1">
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                      <span class="text-[11px] font-bold text-[#64748B]">${a.time}</span>
+                      <span class="text-xs font-bold text-[#0F2C59]">${a.sku}</span>
+                    </div>
+                    <span class="text-xs font-bold px-2 py-0.5 rounded ${delta >= 0 ? 'bg-[#DCFCE7] text-[#15803D]' : 'bg-[#FEE2E2] text-[#DC2626]'}">
+                      ${deltaStr}
+                    </span>
+                  </div>
+                  <p class="text-xs font-bold text-[#0F172A]">${a.name}</p>
+                  <p class="text-[11px] text-[#64748B]">${a.reason} • <span class="font-medium text-[#0F172A]">${a.mechanic}</span></p>
+                  <p class="text-[10px] font-bold text-[#0F2C59] pt-1 border-t border-[#E2E8F0]">Warehouse Balance After: ${a.after} units</p>
+                </div>
+              `;
+            }).join('');
+          } catch (e) {
+            console.error('renderAuditList error:', e);
+          }
+        },
+
+        // MASTER RENDER DISPATCHER
+        render: function () {
+          try {
+            // Top Bar network status
+            const netDot = document.getElementById('network-dot');
+            const netLabel = document.getElementById('network-label');
+            const netPill = document.getElementById('network-pill');
+
+            if (netDot && netLabel && netPill) {
+              if (state.isOnline) {
+                netDot.className = 'w-2 h-2 rounded-full bg-[#15803D]';
+                netLabel.textContent = 'Cloud Sync';
+                netLabel.className = 'text-[#15803D]';
+                netPill.className = 'touch-target flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border border-[#86EFAC] bg-[#DCFCE7]';
+              } else {
+                netDot.className = 'w-2 h-2 rounded-full bg-[#B45309]';
+                netLabel.textContent = 'Offline Mode';
+                netLabel.className = 'text-[#B45309]';
+                netPill.className = 'touch-target flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border border-[#FDE68A] bg-[#FEF3C7]';
+              }
+            }
+
+            // Sync Screen status card synchronization
+            const syncIcon = document.getElementById('sync-status-icon');
+            const syncTitle = document.getElementById('sync-status-title');
+            const syncDesc = document.getElementById('sync-status-desc');
+            const syncToggle = document.getElementById('sync-toggle-btn');
+
+            if (syncIcon && syncTitle && syncDesc && syncToggle) {
+              if (state.isOnline) {
+                syncIcon.className = 'w-10 h-10 rounded-xl bg-[#DCFCE7] text-[#15803D] flex items-center justify-center';
+                syncTitle.textContent = 'Cloud Database Online';
+                syncDesc.textContent = 'Changes sync automatically to workshop cloud';
+                syncToggle.className = 'touch-target px-3 py-1.5 rounded-xl border text-xs font-bold bg-white text-[#0F172A] border-[#E2E8F0]';
+              } else {
+                syncIcon.className = 'w-10 h-10 rounded-xl bg-[#FEF3C7] text-[#B45309] flex items-center justify-center';
+                syncTitle.textContent = 'Offline Mode Active';
+                syncDesc.textContent = 'Changes queued locally in outbox until connected';
+                syncToggle.className = 'touch-target px-3 py-1.5 rounded-xl border text-xs font-bold bg-[#0F2C59] text-white border-[#0F2C59]';
+              }
+            }
+
+            // Bottom nav badges
+            const lowStockCount = state.parts.filter(p => (p.qty || 0) <= (p.minQty || 0)).length;
+            const navStockBadge = document.getElementById('nav-stock-badge');
+            if (navStockBadge) {
+              navStockBadge.textContent = lowStockCount;
+              navStockBadge.classList.toggle('hidden', lowStockCount === 0);
+            }
+
+            const pendingSyncCount = state.syncQueue.filter(s => s.status === 'Pending').length;
+            const navSyncBadge = document.getElementById('nav-sync-badge');
+            if (navSyncBadge) {
+              navSyncBadge.textContent = pendingSyncCount;
+              navSyncBadge.classList.toggle('hidden', pendingSyncCount === 0);
+            }
+
+            // Active Jobs count badge
+            const activeJobsCount = state.jobs.filter(j => j.status === 'Active').length;
+            const activeJobsBadge = document.getElementById('active-jobs-badge');
+            if (activeJobsBadge) activeJobsBadge.textContent = activeJobsCount;
+
+            // 1. Render Job Cards
+            const jobList = document.getElementById('job-cards-list');
+            if (jobList) {
+              jobList.innerHTML = state.jobs.map(j => {
+                const parts = Array.isArray(j.partsUsed) ? j.partsUsed : [];
+                const partsTotal = parts.reduce((sum, p) => sum + ((p.price || 0) * (p.qty || 0)), 0);
+                const partsCost = parts.reduce((sum, p) => sum + ((p.cost || 0) * (p.qty || 0)), 0);
+                const laborHours = typeof j.laborHours === 'number' ? j.laborHours : 1.5;
+                const laborTotal = laborHours * 85.00;
+                const subtotal = partsTotal + laborTotal;
+                const totalCost = partsCost + (laborHours * 35.00);
+                const margin = subtotal > 0 ? ((subtotal - totalCost) / subtotal) * 100 : 0;
+
+                return `
+                  <div class="bg-white border border-[#E2E8F0] rounded-2xl p-4 card-shadow space-y-3">
+                    <div class="flex items-center justify-between">
+                      <div class="flex items-center gap-2">
+                        <span class="bg-[#0F2C59] text-white text-xs font-bold px-2 py-0.5 rounded-lg">#${j.id}</span>
+                        <span class="bg-[#FEF3C7] text-[#B45309] border border-[#FDE68A] text-xs font-bold px-2 py-0.5 rounded-md uppercase">${j.plate}</span>
+                      </div>
+                      <span class="text-xs font-bold px-2 py-0.5 rounded ${j.status === 'Active' ? 'bg-[#DCFCE7] text-[#15803D] border border-[#86EFAC]' : 'text-[#64748B]'}">
+                        ${j.status === 'Active' ? 'In Workshop' : 'Completed'}
+                      </span>
+                    </div>
+
+                    <div>
+                      <h4 class="text-sm font-bold text-[#0F172A]">${j.model || 'Vehicle'} • ${j.customer}</h4>
+                      <p class="text-xs text-[#64748B]">Mechanic: <span class="font-medium text-[#0F172A]">${j.mechanic || 'Dave Miller'}</span> • Labor: ${laborHours}h ($${laborTotal.toFixed(0)})</p>
+                    </div>
+
+                    <!-- Parts Used List -->
+                    <div class="bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl p-2.5 text-xs space-y-1.5">
+                      <p class="text-[10px] font-bold text-[#64748B] uppercase">Parts Deducted (${parts.length})</p>
+                      ${parts.length === 0 ? '<p class="text-[#64748B] italic">No parts assigned yet.</p>' : ''}
+                      ${parts.map(p => `
+                        <div class="flex items-center justify-between border-b border-[#E2E8F0] pb-1 last:border-none last:pb-0">
+                          <span>${p.qty}x ${p.name}</span>
+                          <span class="font-bold text-[#0F2C59]">$${((p.price || 0) * (p.qty || 0)).toFixed(2)}</span>
+                        </div>
+                      `).join('')}
+                    </div>
+
+                    <!-- Margin & Subtotal Preview -->
+                    <div class="flex items-center justify-between bg-[#F1F5F9] p-2.5 rounded-xl text-xs">
+                      <div>
+                        <span class="text-[10px] text-[#64748B] block">Subtotal Quote</span>
+                        <span class="text-base font-bold text-[#0F2C59]">$${subtotal.toFixed(2)}</span>
+                      </div>
+                      <div class="text-right">
+                        <span class="text-[10px] text-[#64748B] block">Gross Margin</span>
+                        <span class="font-bold ${margin >= 35 ? 'text-[#15803D]' : 'text-[#B45309]'}">${margin.toFixed(1)}%</span>
+                      </div>
+                    </div>
+
+                    ${j.status === 'Active' ? `
+                      <div class="flex gap-2 pt-1">
+                        <button onclick="window.app.openDeductModal('${j.id}')" class="flex-1 py-2.5 rounded-xl border border-[#0F2C59] text-xs font-bold text-[#0F2C59] hover:bg-[#EFF6FF] transition-colors touch-target">
+                          + Deduct Part
+                        </button>
+                        <button onclick="window.app.completeJobCard('${j.id}')" class="flex-1 py-2.5 rounded-xl bg-[#0F2C59] text-white text-xs font-bold shadow hover:bg-opacity-90 transition-colors touch-target">
+                          Complete Job
+                        </button>
+                      </div>
+                    ` : ''}
+                  </div>
+                `;
+              }).join('');
+            }
+
+            // 2. Render Voice Drafts Queue
+            const draftList = document.getElementById('voice-drafts-list');
+            const draftCount = document.getElementById('voice-drafts-count');
+            const pendingDrafts = state.drafts.filter(d => d.status === 'Pending');
+            if (draftCount) draftCount.textContent = pendingDrafts.length;
+
+            if (draftList) {
+              draftList.innerHTML = state.drafts.map(d => `
+                <div class="bg-white border border-[#E2E8F0] rounded-xl p-3 card-shadow space-y-2">
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-1.5">
+                      <span class="text-xs font-bold text-[#64748B]">#${d.id}</span>
+                      <span class="text-[11px] text-[#64748B]">• ${d.time}</span>
+                    </div>
+                    <span class="text-[10px] font-bold px-2 py-0.5 rounded ${d.status === 'Confirmed' ? 'bg-[#DCFCE7] text-[#15803D]' : d.status === 'Rejected' ? 'bg-[#FEE2E2] text-[#DC2626]' : 'bg-[#FEF3C7] text-[#B45309]'}">
+                      ${d.status}
+                    </span>
+                  </div>
+
+                  <p class="text-xs italic text-[#0F172A]">"${d.text}"</p>
+
+                  <div class="flex items-center gap-1.5 flex-wrap text-[11px]">
+                    <span class="bg-[#EFF6FF] text-[#0F2C59] px-2 py-0.5 rounded border border-[#BFDBFE] font-semibold">${d.part}</span>
+                    <span class="bg-[#F1F5F9] px-2 py-0.5 rounded font-bold text-[#0F172A]">Qty: ${d.qty}</span>
+                    <span class="bg-[#FEF3C7] text-[#B45309] px-2 py-0.5 rounded border border-[#FDE68A] font-bold">${d.plate}</span>
+                  </div>
+
+                  ${d.status === 'Pending' ? `
+                    <div class="flex gap-2 pt-1 border-t border-[#E2E8F0]">
+                      <button onclick="window.app.rejectVoiceDraft('${d.id}')" class="flex-1 py-1.5 rounded-lg border border-[#FCA5A5] text-[#DC2626] text-xs font-bold hover:bg-red-50">Reject</button>
+                      <button onclick="window.app.confirmVoiceDraft('${d.id}')" class="flex-1 py-1.5 rounded-lg bg-[#DCFCE7] border border-[#86EFAC] text-[#15803D] text-xs font-bold hover:bg-green-100">Confirm & Deduct</button>
+                    </div>
+                  ` : ''}
+                </div>
+              `).join('');
+            }
+
+            // 3. Render Core Returns
+            const coreList = document.getElementById('core-returns-list');
+            const coreTotalEl = document.getElementById('core-deposit-total');
+            const unclaimedTotal = state.cores.filter(c => c.status !== 'Returned to Supplier').reduce((sum, c) => sum + (c.deposit || 0), 0);
+            if (coreTotalEl) coreTotalEl.textContent = `$${unclaimedTotal.toFixed(2)}`;
+
+            if (coreList) {
+              coreList.innerHTML = state.cores.map(c => {
+                const dep = typeof c.deposit === 'number' ? c.deposit.toFixed(2) : '0.00';
+                return `
+                  <div class="bg-white border border-[#E2E8F0] rounded-2xl p-4 card-shadow space-y-2.5">
+                    <div class="flex items-start justify-between">
+                      <div>
+                        <div class="flex items-center gap-1.5">
+                          <span class="text-xs font-bold text-[#64748B]">#${c.id}</span>
+                          <span class="bg-[#FEF3C7] text-[#B45309] text-[10px] font-bold px-1.5 py-0.5 rounded uppercase">${c.plate}</span>
+                        </div>
+                        <h4 class="text-sm font-bold text-[#0F172A] mt-1">${c.part}</h4>
+                        <p class="text-xs text-[#64748B]">Supplier: ${c.supplier || 'Warehouse'}</p>
+                      </div>
+                      <span class="bg-[#EDE9FE] text-[#6D28D9] border border-[#DDD6FE] text-xs font-bold px-2 py-1 rounded-lg">
+                        $${dep} Credit
+                      </span>
+                    </div>
+
+                    <div class="pt-2 border-t border-[#E2E8F0] flex items-center justify-between">
+                      <span class="text-xs font-bold ${c.status === 'Returned to Supplier' ? 'text-[#15803D]' : 'text-[#0F2C59]'}">
+                        Stage: ${c.status}
+                      </span>
+                      ${c.status !== 'Returned to Supplier' ? `
+                        <button onclick="window.app.advanceCoreStatus('${c.id}')" class="touch-target px-3 py-1.5 bg-[#0F2C59] text-white text-xs font-bold rounded-lg shadow">
+                          ${c.status === 'Removed from Car' ? 'Move to Warehouse' : 'Claim Credit'}
+                        </button>
+                      ` : '<span class="text-xs font-bold text-[#15803D]">✓ Credit Claimed</span>'}
+                    </div>
+                  </div>
+                `;
+              }).join('');
+            }
+
+            // 4. Render Category Filter Pills
+            const catPills = document.getElementById('category-pills');
+            const categories = ['All', 'Fluids', 'Filters', 'Ignition', 'Brakes', 'Electrical', 'Cooling / HVAC', 'Engine Timing'];
+            if (catPills) {
+              catPills.innerHTML = categories.map(cat => `
+                <button onclick="window.app.selectCategory('${cat}')" class="touch-target px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors ${state.selectedCategory === cat ? 'bg-[#0F2C59] text-white' : 'bg-white border border-[#E2E8F0] text-[#0F172A] hover:bg-slate-50'}">
+                  ${cat}
+                </button>
+              `).join('');
+            }
+
+            // 5. Render Stock List
+            this.renderStockList();
+
+            // 6. Render Scan Result
+            this.renderScanResult();
+
+            // 7. Render Audit
+            this.renderAuditList();
+
+            // 8. Render Sync Outbox
+            const syncList = document.getElementById('sync-queue-list');
+            const syncCountEl = document.getElementById('sync-pending-count');
+            const pendingOps = state.syncQueue.filter(s => s.status === 'Pending').length;
+            if (syncCountEl) syncCountEl.textContent = pendingOps;
+
+            if (syncList) {
+              syncList.innerHTML = state.syncQueue.map(s => `
+                <div class="bg-white border border-[#E2E8F0] rounded-xl p-3 card-shadow flex items-center justify-between text-xs">
+                  <div>
+                    <div class="flex items-center gap-1.5">
+                      <span class="font-bold text-[#64748B]">${s.time}</span>
+                      <span class="font-bold text-[#0F2C59]">• ${s.type}</span>
+                    </div>
+                    <p class="text-[#0F172A] mt-0.5 font-medium">${s.text}</p>
+                  </div>
+                  <span class="text-[10px] font-bold px-2 py-0.5 rounded ${s.status === 'Synced' ? 'bg-[#DCFCE7] text-[#15803D]' : 'bg-[#FEF3C7] text-[#B45309]'}">
+                    ${s.status}
+                  </span>
+                </div>
+              `).join('');
+            }
+
+            safeCreateIcons();
+          } catch (e) {
+            console.error('render error:', e);
+          }
+        }
+      };
+
+      // INITIALIZATION HOOK (Supports standard DOMContentLoaded & late script execution)
+      function bootApp() {
+        try {
+          initSpeechAPI();
+          window.app.render();
+        } catch (e) {
+          console.error('Boot error:', e);
+        }
+      }
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', bootApp);
+      } else {
+        bootApp();
+      }
+
+    })();
+  </script>
+</body>
+</html>
